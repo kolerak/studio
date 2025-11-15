@@ -1,4 +1,7 @@
-import { getNote } from "@/lib/firebase/firestore";
+
+import { getFirestore, doc, getDoc } from "firebase/firestore";
+import { initializeFirebase } from "@/firebase";
+import type { Note } from "@/types";
 import {
   Card,
   CardContent,
@@ -14,6 +17,27 @@ type NotePageProps = {
     noteId: string;
   };
 };
+
+async function getNote(id: string): Promise<Note | null> {
+  const { firestore } = initializeFirebase();
+  const docRef = doc(firestore, "notes", id);
+  const docSnap = await getDoc(docRef);
+
+  if (!docSnap.exists()) {
+    return null;
+  }
+
+  const data = docSnap.data();
+  // Simple check on the client-side
+  if (data.expiresAt && data.expiresAt.toDate() < new Date()) {
+    // Optionally delete the note here if you want client-side cleanup,
+    // but server-side function is more reliable.
+    return { id: docSnap.id, ...data, content: "This note has expired and is no longer available." } as Note;
+  }
+
+  return { id: docSnap.id, ...data } as Note;
+}
+
 
 export default async function NotePage({ params }: NotePageProps) {
   const note = await getNote(params.noteId);
