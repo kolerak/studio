@@ -1,3 +1,4 @@
+
 import { getApps, initializeApp, App } from "firebase-admin/app";
 import { firebaseConfig } from "@/firebase/config";
 
@@ -5,6 +6,7 @@ let adminApp: App;
 
 export async function initAdmin() {
   if (getApps().length > 0) {
+    // Return the existing initialized app
     return getApps()[0];
   }
 
@@ -21,6 +23,8 @@ export async function initAdmin() {
         });
     } catch (initError) {
         console.error("Firebase Admin SDK initialization failed completely. Error: ", initError);
+        // If even this fails, we can't proceed.
+        throw initError;
     }
   }
   return adminApp;
