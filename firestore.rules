@@ -1,0 +1,26 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper function to check if a note's data is valid
+    function isNoteDataValid(noteData) {
+      let thirtyDaysInMillis = 30 * 24 * 60 * 60 * 1000;
+      let maxExpiry = request.time + duration.value(thirtyDaysInMillis, 's');
+
+      return noteData.content is string && noteData.content.size() > 0 && noteData.content.size() < 10000
+        && noteData.createdAt == request.time
+        && noteData.expiresAt > request.time && noteData.expiresAt <= maxExpiry
+        && (noteData.userId == null || noteData.userId == request.auth.uid);
+    }
+    
+    match /notes/{noteId} {
+      allow read: if true;
+      allow create: if isNoteDataValid(request.resource.data);
+      allow update, delete: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
