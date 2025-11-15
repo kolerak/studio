@@ -3,26 +3,25 @@
 import { doc, setDoc, Timestamp } from "firebase/firestore";
 import { redirect } from "next/navigation";
 import { generateShortId } from "@/lib/utils";
-import { getApps, initializeApp, cert } from "firebase-admin/app";
+import { getApps, initializeApp } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
 import { firebaseConfig } from "@/firebase/config";
 
 async function initAdmin() {
   if (getApps().length > 0) {
-    return getApps()[0];
+    return;
   }
-
   // When running in a Google Cloud environment, the SDK can automatically
   // detect the service account credentials and project ID.
   try {
-    return initializeApp();
+    initializeApp();
   } catch (e) {
     console.warn(
       'Admin initialization with default credentials failed. Falling back to project ID. Error:',
       e
     );
     try {
-      return initializeApp({ projectId: firebaseConfig.projectId });
+      initializeApp({ projectId: firebaseConfig.projectId });
     } catch (e2) {
       console.error('Admin initialization failed completely. Error:', e2);
       throw e2;
@@ -48,7 +47,7 @@ export async function createNoteAction(formData: FormData) {
     return { error: "You must be logged in to create a note." };
   }
 
-  let noteId = generateShortId();
+  const noteId = generateShortId();
 
   const thirtyDaysFromNow = new Date();
   thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
