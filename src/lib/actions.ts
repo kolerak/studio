@@ -3,13 +3,11 @@
 import { doc, setDoc, Timestamp } from "firebase/firestore";
 import { redirect } from "next/navigation";
 import { generateShortId } from "@/lib/utils";
-import { getApps } from "firebase-admin/app";
 import { initAdmin } from "./firebase/admin-config";
-import { initializeFirebase } from "@/firebase";
+import { getFirestore } from "firebase-admin/firestore";
 
 async function getUserId() {
   try {
-    await initAdmin();
     // This part is tricky without a session management library like next-auth
     // For a server action, we don't have direct access to client-side auth state.
     // A proper implementation would pass an ID token from the client to the server action
@@ -24,9 +22,11 @@ async function getUserId() {
 }
 
 export async function createNoteAction(formData: FormData) {
+  await initAdmin();
+  const firestore = getFirestore();
+
   const content = formData.get("content") as string;
   const userId = formData.get("userId") as string | null;
-  const { firestore } = initializeFirebase();
 
   if (!content || content.trim().length === 0) {
     return { error: "Note content cannot be empty." };
