@@ -67,9 +67,7 @@
       },
       "required": [
         "id",
-        "userId",
         "content",
-        "url",
         "creationTimestamp",
         "expirationTimestamp"
       ]
@@ -78,7 +76,8 @@
   "auth": {
     "providers": [
       "password",
-      "anonymous"
+      "anonymous",
+      "google.com"
     ]
   },
   "firestore": {
@@ -100,18 +99,14 @@
         }
       },
       {
-        "path": "/users/{userId}/notes/{noteId}",
+        "path": "/notes/{noteId}",
         "definition": {
           "entityName": "Note",
           "schema": {
             "$ref": "#/backend/entities/Note"
           },
-          "description": "Stores notes created by a specific user. Access control is based on path-based ownership (request.auth.uid == userId).",
+          "description": "Stores notes created by any user (authenticated or anonymous).",
           "params": [
-            {
-              "name": "userId",
-              "description": "The unique identifier of the user who created the note."
-            },
             {
               "name": "noteId",
               "description": "The unique identifier of the note."
@@ -119,7 +114,6 @@
           ]
         }
       }
-    ],
-    "reasoning": "The Firestore data structure is designed to ensure secure and scalable management of user data and notes for the Ephemeral Notes application. It prioritizes authorization independence and facilitates simple, robust security rules.\n\n**Authorization Independence:**\n\n*   User data is stored in `/users/{userId}`, enabling path-based ownership. No denormalization is required here because access is determined solely by `request.auth.uid == userId`.\n*   Notes are stored in a subcollection `/users/{userId}/notes/{noteId}`. This achieves authorization independence, as ownership is inherently tied to the parent user document. Access control rules can directly verify `request.auth.uid == userId`. No need for a separate `ownerId` field in the note documents.\n\n**Structural Segregation:**\n\n*   User data and note data are stored in separate collections/subcollections to enforce different security postures.\n\n**Access Modeling:**\n\n*   Path-based ownership is used for both user data and notes, as described above.\n\n**QAPs (Rules Are Not Filters):**\n\nThe structure allows for efficient and secure `list` operations. The path `/users/{userId}/notes/{noteId}` ensures that users can only list notes they own, because the rule will check that the `userId` path parameter matches the `request.auth.uid`. This removes the need to filter server-side based on note content.\n\n**Invariants:**\n\n*   The structure facilitates the enforcement of ownership and ensures data integrity. Security rules can validate the `userId` field in the `Note` document matches the `userId` in the path to prevent unauthorized data manipulation.\n\nThis structure makes for simple and secure Firestore security rules, without the need for complex `get()` calls or custom claims."
+    ]
   }
 }

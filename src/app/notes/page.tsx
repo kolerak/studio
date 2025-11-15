@@ -2,37 +2,35 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useAuth } from "@/hooks/use-auth";
-import { getUserNotes } from "@/lib/firebase/firestore";
+import { useUser, useFirestore, useMemoFirebase } from "@/firebase";
+import { collection, query, where } from "firebase/firestore";
+import { useCollection } from "@/firebase/firestore/use-collection";
 import type { Note } from "@/types";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { formatDistanceToNow, format } from "date-fns";
+import { formatDistanceToNow } from "date-fns";
 import { Loader2, PlusCircle, ArrowRight, Copy } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 export default function NotesPage() {
-  const { user, loading: authLoading } = useAuth();
+  const { user, isUserLoading } = useUser();
   const router = useRouter();
-  const [notes, setNotes] = useState<Note[]>([]);
-  const [loading, setLoading] = useState(true);
+  const firestore = useFirestore();
   const { toast } = useToast();
 
   useEffect(() => {
-    if (!authLoading && !user) {
+    if (!isUserLoading && !user) {
       router.push("/login");
     }
-  }, [user, authLoading, router]);
+  }, [user, isUserLoading, router]);
 
-  useEffect(() => {
-    if (user) {
-      setLoading(true);
-      getUserNotes(user.uid)
-        .then(setNotes)
-        .finally(() => setLoading(false));
-    }
-  }, [user]);
+  const notesQuery = useMemoFirebase(() => {
+    if (!user || !firestore) return null;
+    return query(collection(firestore, "notes"), where("userId", "==", user.uid));
+  }, [user, firestore]);
+  
+  const { data: notes, isLoading: notesLoading } = useCollection<Note>(notesQuery);
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
@@ -41,8 +39,10 @@ export default function NotesPage() {
       description: "Link copied to clipboard.",
     });
   };
+  
+  const isLoading = isUserLoading || notesLoading;
 
-  if (authLoading || loading) {
+  if (isLoading) {
     return (
       <div className="flex min-h-[calc(100vh-3.5rem)] items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -53,6 +53,8 @@ export default function NotesPage() {
   if (!user) {
     return null; // or a message indicating redirection
   }
+  
+  const sortedNotes = notes?.sort((a, b) => b.createdAt.toMillis() - a.createdAt.toMillis());
 
   return (
     <div className="container py-8">
@@ -69,7 +71,7 @@ export default function NotesPage() {
         </Button>
       </div>
 
-      {notes.length === 0 ? (
+      {sortedNotes && sortedNotes.length === 0 ? (
         <div className="text-center py-16 border-2 border-dashed rounded-lg">
             <h2 className="text-xl font-semibold">No notes yet</h2>
             <p className="text-muted-foreground mt-2 mb-4">Create your first ephemeral note!</p>
@@ -79,8 +81,8 @@ export default function NotesPage() {
         </div>
       ) : (
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {notes.map((note) => {
-            const noteUrl = `${window.location.origin}/${note.id}`;
+          {sortedNotes && sortedNotes.map((note) => {
+            const noteUrl = typeof window !== 'undefined' ? `${window.location.origin}/${note.id}` : '';
             return (
               <Card key={note.id}>
                 <CardHeader>

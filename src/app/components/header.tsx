@@ -2,14 +2,14 @@
 
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { useAuth } from "@/hooks/use-auth";
+import { useUser, useAuth } from "@/firebase";
 import { signOut } from "firebase/auth";
-import { auth } from "@/lib/firebase/config";
 import { useRouter } from "next/navigation";
 import { NotebookPen, LogOut, LogIn } from "lucide-react";
 
 export default function Header() {
-  const { user } = useAuth();
+  const { user } = useUser();
+  const auth = useAuth();
   const router = useRouter();
 
   const handleSignOut = async () => {

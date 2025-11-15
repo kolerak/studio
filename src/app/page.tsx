@@ -4,13 +4,13 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { createNoteAction } from "@/lib/actions";
-import { useAuth } from "@/hooks/use-auth";
+import { useUser } from "@/firebase";
 import React from "react";
 import { Loader2, Send } from "lucide-react";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default function Home() {
-  const { user } = useAuth();
+  const { user } = useUser();
   const { toast } = useToast();
   const [isPending, startTransition] = React.useTransition();
   const formRef = React.useRef<HTMLFormElement>(null);
@@ -55,7 +55,7 @@ export default function Home() {
             <CardHeader>
                 <CardTitle>New Note</CardTitle>
                 <CardDescription>
-                    Your note will be saved and you'll get a shareable link.
+                    {user ? "Your note will be linked to your account." : "Sign in to keep track of your notes."}
                 </CardDescription>
             </CardHeader>
             <CardContent>

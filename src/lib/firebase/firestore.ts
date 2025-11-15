@@ -5,14 +5,11 @@ import {
   getDocs,
   query,
   where,
-  addDoc,
-  serverTimestamp,
   Timestamp,
 } from "firebase/firestore";
-import { db } from "./config";
+import { initializeFirebase } from "@/firebase";
 import type { Note } from "@/types";
 
-const notesCollection = collection(db, "notes");
 
 /**
  * NOTE: For automatic deletion of expired notes, a scheduled Cloud Function
@@ -34,7 +31,8 @@ const notesCollection = collection(db, "notes");
  */
 
 export async function getNote(id: string): Promise<Note | null> {
-  const docRef = doc(db, "notes", id);
+  const { firestore } = initializeFirebase();
+  const docRef = doc(firestore, "notes", id);
   const docSnap = await getDoc(docRef);
 
   if (!docSnap.exists()) {
@@ -44,13 +42,17 @@ export async function getNote(id: string): Promise<Note | null> {
   const data = docSnap.data();
   // Simple check on the client-side
   if (data.expiresAt && data.expiresAt.toDate() < new Date()) {
-    return null; // Treat as not found if expired
+    // Optionally delete the note here if you want client-side cleanup,
+    // but server-side function is more reliable.
+    return { id: docSnap.id, ...data, content: "This note has expired and is no longer available." } as Note;
   }
 
   return { id: docSnap.id, ...data } as Note;
 }
 
 export async function getUserNotes(userId: string): Promise<Note[]> {
+  const { firestore } = initializeFirebase();
+  const notesCollection = collection(firestore, "notes");
   const q = query(notesCollection, where("userId", "==", userId));
   const querySnapshot = await getDocs(q);
   const notes: Note[] = [];
@@ -58,26 +60,4 @@ export async function getUserNotes(userId: string): Promise<Note[]> {
     notes.push({ id: doc.id, ...doc.data() } as Note);
   });
   return notes.sort((a, b) => b.createdAt.toMillis() - a.createdAt.toMillis());
-}
-
-export async function createNote(
-  content: string,
-  userId: string | null
-): Promise<string> {
-    const thirtyDaysFromNow = new Date();
-    thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
-
-    const newNote = {
-        content,
-        userId,
-        createdAt: serverTimestamp(),
-        expiresAt: Timestamp.fromDate(thirtyDaysFromNow),
-    };
-
-    // We use addDoc here and let Firestore generate the ID.
-    // The prompt asked for short URLs, this is handled in the server action
-    // which generates a short ID and then sets the document with that ID.
-    // This function will be part of that larger action.
-    const docRef = await addDoc(notesCollection, newNote);
-    return docRef.id;
 }

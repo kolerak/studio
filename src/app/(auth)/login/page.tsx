@@ -8,7 +8,7 @@ import {
   GoogleAuthProvider,
   signInWithPopup,
 } from "firebase/auth";
-import { auth } from "@/lib/firebase/config";
+import { useAuth } from "@/firebase";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -39,6 +39,7 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [loadingGoogle, setLoadingGoogle] = useState(false);
   const router = useRouter();
+  const auth = useAuth();
   const { toast } = useToast();
 
   const handleAuth = async (type: "signIn" | "signUp") => {

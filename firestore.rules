@@ -1,90 +1,15 @@
-/**
- * @file Firestore Security Rules for Ephemeral Notes application.
- *
- * @corePhilosophy This ruleset enforces a strict user-ownership model. Users can only
- *  access their own profile data and the notes they have created.
- *
- * @dataStructure The data is structured under /users/{userId}, with each user document
- *  containing profile information. Notes are stored in a subcollection
- *  /users/{userId}/notes/{noteId}.
- *
- * @keySecurityDecisions
- *   - Users can only access their own data; listing all users is disallowed.
- *   - Notes inherit ownership from their parent user document, simplifying rules.
- *   - Data schema is not strictly enforced to allow for prototyping, but ownership
- *     relationships are strictly validated.
- *
- * @denormalizationForAuthorization No denormalization is needed. The path-based structure inherently
- *  ties ownership to the user's UID. Access is controlled by comparing request.auth.uid
- *  to the userId path parameter.
- *
- * @structuralSegregation User profiles and notes are segregated under the /users/{userId}
- *  path, ensuring clear ownership boundaries.
- */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    /**
-     * @description Protects user profile information.
-     * @path /users/{userId}
-     * @allow (create) User with UID 'user_abc' can create their own profile document.
-     * @allow (get) User with UID 'user_abc' can read their own profile document.
-     * @allow (update) User with UID 'user_abc' can update their own profile document.
-     * @allow (delete) User with UID 'user_abc' can delete their own profile document.
-     * @deny (create) User with UID 'user_xyz' cannot create a profile document for 'user_abc'.
-     * @deny (get) User with UID 'user_xyz' cannot read the profile document of 'user_abc'.
-     * @deny (update) User with UID 'user_xyz' cannot update the profile document of 'user_abc'.
-     * @deny (delete) User with UID 'user_xyz' cannot delete the profile document of 'user_abc'.
-     * @principle Enforces document ownership for all operations.
-     */
     match /users/{userId} {
-      function isSignedIn() {
-        return request.auth != null;
-      }
-      function isOwner(userId) {
-        return request.auth.uid == userId;
-      }
-      function isExistingOwner(userId) {
-        return isOwner(userId) && resource != null;
-      }
-
-      allow get: if isOwner(userId);
-      allow list: if false; // Listing all users is not permitted.
-      allow create: if isOwner(userId) && request.resource.data.id == userId;
-      allow update: if isExistingOwner(userId) && request.resource.data.id == resource.data.id;
-      allow delete: if isExistingOwner(userId);
+      allow read, write: if request.auth != null && request.auth.uid == userId;
     }
-
-    /**
-     * @description Protects notes created by users.
-     * @path /users/{userId}/notes/{noteId}
-     * @allow (create) User with UID 'user_abc' can create a note in their own notes collection.
-     * @allow (get) User with UID 'user_abc' can read a note in their own notes collection.
-     * @allow (update) User with UID 'user_abc' can update a note in their own notes collection.
-     * @allow (delete) User with UID 'user_abc' can delete a note in their own notes collection.
-     * @deny (create) User with UID 'user_xyz' cannot create a note in 'user_abc's notes collection.
-     * @deny (get) User with UID 'user_xyz' cannot read a note in 'user_abc's notes collection.
-     * @deny (update) User with UID 'user_xyz' cannot update a note in 'user_abc's notes collection.
-     * @deny (delete) User with UID 'user_xyz' cannot delete a note in 'user_abc's notes collection.
-     * @principle Enforces document ownership based on the parent user ID.
-     */
-    match /users/{userId}/notes/{noteId} {
-      function isSignedIn() {
-        return request.auth != null;
-      }
-      function isOwner(userId) {
-        return request.auth.uid == userId;
-      }
-      function isExistingOwner(userId) {
-        return isOwner(userId) && resource != null;
-      }
-
-      allow get: if isOwner(userId);
-      allow list: if isOwner(userId);
-      allow create: if isOwner(userId) && request.resource.data.userId == userId;
-      allow update: if isExistingOwner(userId) && request.resource.data.userId == resource.data.userId;
-      allow delete: if isExistingOwner(userId);
+    
+    match /notes/{noteId} {
+      allow read: if true;
+      allow create: if true;
+      // Only allow updates/deletes from the user who owns the note
+      allow update, delete: if request.auth != null && request.auth.uid == resource.data.userId;
     }
   }
 }

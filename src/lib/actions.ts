@@ -1,12 +1,11 @@
 "use server";
 
-import { addDoc, collection, doc, serverTimestamp, setDoc, Timestamp } from "firebase/firestore";
+import { doc, setDoc, Timestamp } from "firebase/firestore";
 import { redirect } from "next/navigation";
-import { db } from "@/lib/firebase/config";
 import { generateShortId } from "@/lib/utils";
-import { getAuth } from "firebase-admin/auth";
 import { getApps } from "firebase-admin/app";
 import { initAdmin } from "./firebase/admin-config";
+import { initializeFirebase } from "@/firebase";
 
 async function getUserId() {
   try {
@@ -27,6 +26,7 @@ async function getUserId() {
 export async function createNoteAction(formData: FormData) {
   const content = formData.get("content") as string;
   const userId = formData.get("userId") as string | null;
+  const { firestore } = initializeFirebase();
 
   if (!content || content.trim().length === 0) {
     return { error: "Note content cannot be empty." };
@@ -51,7 +51,7 @@ export async function createNoteAction(formData: FormData) {
   };
 
   try {
-    const noteRef = doc(db, "notes", noteId);
+    const noteRef = doc(firestore, "notes", noteId);
     await setDoc(noteRef, newNote);
   } catch (error) {
     console.error("Error creating note:", error);

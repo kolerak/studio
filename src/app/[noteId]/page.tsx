@@ -2,7 +2,6 @@ import { getNote } from "@/lib/firebase/firestore";
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
