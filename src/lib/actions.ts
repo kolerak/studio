@@ -1,11 +1,10 @@
 
 "use server";
 
-import { doc, setDoc, Timestamp } from "firebase/firestore";
 import { redirect } from "next/navigation";
 import { generateShortId } from "@/lib/utils";
 import { getApps, initializeApp, App } from "firebase-admin/app";
-import { getFirestore } from "firebase-admin/firestore";
+import { getFirestore, Timestamp } from "firebase-admin/firestore";
 import { firebaseConfig } from "@/firebase/config";
 
 // Store a cached instance of the Firebase Admin app
@@ -37,8 +36,6 @@ async function initAdmin() {
       return adminApp;
     } catch (e2: any) {
       console.error(`Firebase Admin initialization failed completely (Code: ${e2.code}, Message: ${e2.message}).`);
-      // In a real app, you might throw this error to prevent the action from proceeding
-      // without a valid Firebase connection.
       throw e2;
     }
   }
@@ -47,6 +44,7 @@ async function initAdmin() {
 export async function createNoteAction(formData: FormData) {
   try {
     await initAdmin();
+    // Use the Admin SDK's getFirestore instance
     const firestore = getFirestore();
 
     const content = formData.get("content") as string;
@@ -71,12 +69,14 @@ export async function createNoteAction(formData: FormData) {
     const newNote = {
       content,
       userId: userId,
+      // Use the Admin SDK's Timestamp
       createdAt: Timestamp.now(),
       expiresAt: Timestamp.fromDate(thirtyDaysFromNow),
     };
 
-    const noteRef = doc(firestore, "notes", noteId);
-    await setDoc(noteRef, newNote);
+    // Use the Admin SDK's method to get a document reference and set it
+    const noteRef = firestore.collection("notes").doc(noteId);
+    await noteRef.set(newNote);
     
     // This part will only be reached if setDoc is successful
     redirect(`/${noteId}`);
