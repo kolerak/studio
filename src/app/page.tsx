@@ -6,11 +6,12 @@ import { useToast } from "@/hooks/use-toast";
 import { createNoteAction } from "@/lib/actions";
 import { useUser } from "@/firebase";
 import React from "react";
-import { Loader2, Send } from "lucide-react";
+import { Loader2, Send, LogIn } from "lucide-react";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import Link from "next/link";
 
 export default function Home() {
-  const { user } = useUser();
+  const { user, isUserLoading } = useUser();
   const { toast } = useToast();
   const [isPending, startTransition] = React.useTransition();
   const formRef = React.useRef<HTMLFormElement>(null);
@@ -21,6 +22,13 @@ export default function Home() {
     
     if (user) {
       formData.set("userId", user.uid);
+    } else {
+        toast({
+            variant: "destructive",
+            title: "Authentication Error",
+            description: "You must be logged in to create a note.",
+        });
+        return;
     }
     
     startTransition(async () => {
@@ -51,38 +59,66 @@ export default function Home() {
         </div>
 
         <Card className="shadow-2xl shadow-primary/10">
-          <form onSubmit={handleSubmit} ref={formRef}>
-            <CardHeader>
-                <CardTitle>New Note</CardTitle>
-                <CardDescription>
-                    {user ? "Your note will be linked to your account." : "Sign in to keep track of your notes."}
-                </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Textarea
-                name="content"
-                placeholder="Write something that will disappear..."
-                className="min-h-[200px] text-base resize-none"
-                required
-                disabled={isPending}
-              />
-            </CardContent>
-            <CardFooter>
-              <Button type="submit" disabled={isPending} className="w-full">
-                {isPending ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Creating...
-                  </>
-                ) : (
-                  <>
-                    <Send className="mr-2 h-4 w-4" />
-                    Create Note
-                  </>
-                )}
-              </Button>
-            </CardFooter>
-          </form>
+          {isUserLoading ? (
+             <div className="flex items-center justify-center p-20">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+             </div>
+          ) : user ? (
+            <form onSubmit={handleSubmit} ref={formRef}>
+              <CardHeader>
+                  <CardTitle>New Note</CardTitle>
+                  <CardDescription>
+                      Your note will be linked to your account and saved for 30 days.
+                  </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Textarea
+                  name="content"
+                  placeholder="Write something that will disappear..."
+                  className="min-h-[200px] text-base resize-none"
+                  required
+                  disabled={isPending}
+                />
+              </CardContent>
+              <CardFooter>
+                <Button type="submit" disabled={isPending} className="w-full">
+                  {isPending ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Creating...
+                    </>
+                  ) : (
+                    <>
+                      <Send className="mr-2 h-4 w-4" />
+                      Create Note
+                    </>
+                  )}
+                </Button>
+              </CardFooter>
+            </form>
+          ) : (
+            <>
+                <CardHeader>
+                    <CardTitle>Create a Note</CardTitle>
+                    <CardDescription>
+                        Please log in or register to create your private, ephemeral notes.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <div className="flex justify-center items-center h-[200px] border-2 border-dashed rounded-lg bg-muted/50">
+                        <p className="text-muted-foreground">Log in to get started.</p>
+                    </div>
+                </CardContent>
+                <CardFooter>
+                    <Button asChild className="w-full">
+                        <Link href="/login">
+                            <LogIn className="mr-2 h-4 w-4" />
+                            Login or Register
+                        </Link>
+                    </Button>
+                </CardFooter>
+            </>
+          )}
         </Card>
       </div>
     </div>
