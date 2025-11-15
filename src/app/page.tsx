@@ -1,3 +1,4 @@
+
 "use client";
 
 import { Button } from "@/components/ui/button";
@@ -34,9 +35,10 @@ export default function Home() {
     startTransition(async () => {
       const result = await createNoteAction(formData);
       if (result?.error) {
+        console.error("Note Creation Error:", result.error);
         toast({
           variant: "destructive",
-          title: "Error",
+          title: "Error Creating Note",
           description: result.error,
         });
       } else {

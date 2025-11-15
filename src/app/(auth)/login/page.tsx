@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState } from "react";
@@ -61,10 +62,11 @@ export default function LoginPage() {
       }
       router.push("/notes");
     } catch (error: any) {
+      console.error(`Auth Error (${type}):`, error);
       toast({
         variant: "destructive",
         title: "Authentication Error",
-        description: error.message.replace('Firebase: ', ''),
+        description: `Code: ${error.code}\nMessage: ${error.message.replace('Firebase: ', '')}`,
       });
     } finally {
       setLoading(false);
@@ -73,7 +75,6 @@ export default function LoginPage() {
 
   const handleGoogleSignIn = async () => {
     setLoadingGoogle(true);
-    const provider = new GoogleAuthProvider();
     if (!auth) {
         toast({
             variant: "destructive",
@@ -84,13 +85,15 @@ export default function LoginPage() {
         return;
     }
     try {
+      const provider = new GoogleAuthProvider();
       await signInWithPopup(auth, provider);
       router.push("/notes");
     } catch (error: any) {
+        console.error("Google Sign-In Error:", error);
         toast({
             variant: "destructive",
             title: "Google Sign-In Error",
-            description: error.message.replace('Firebase: ', ''),
+            description: `Code: ${error.code}\nMessage: ${error.message.replace('Firebase: ', '')}`,
         });
     } finally {
         setLoadingGoogle(false);
