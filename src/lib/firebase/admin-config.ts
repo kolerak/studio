@@ -1,24 +1,27 @@
-import { getApps } from "firebase-admin/app";
+import { getApps, initializeApp, App } from "firebase-admin/app";
+import { firebaseConfig } from "@/firebase/config";
 
-// In a real app, you would use a service account key.
-// This is a placeholder to allow the server action to be structured correctly.
-// The user should replace this with their actual service account credentials.
-const DUMMY_SERVICE_ACCOUNT = {
-  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || 'your-project-id',
-  clientEmail: process.env.FIREBASE_CLIENT_EMAIL || 'your-client-email@example.com',
-  privateKey: (process.env.FIREBASE_PRIVATE_KEY || 'your-private-key').replace(/\\n/g, '\n'),
-};
+let adminApp: App;
 
 export async function initAdmin() {
-  const apps = getApps();
-  if (!apps.length) {
+  if (getApps().length > 0) {
+    return getApps()[0];
+  }
+
+  try {
+    // When running in a Google Cloud environment, the SDK can automatically
+    // detect the service account credentials and project ID.
+    adminApp = initializeApp();
+  } catch (e) {
+    console.warn("Admin initialization with default credentials failed, trying with project ID. Error: ", e);
     try {
-      const { initializeApp, cert } = await import("firebase-admin/app");
-      initializeApp({
-        credential: cert(DUMMY_SERVICE_ACCOUNT),
-      });
-    } catch (e) {
-      console.error("Admin initialization failed. This may be expected on the client-side, but should work on the server. Ensure service account credentials are set.");
+        // Fallback for local development or environments where default credentials aren't set
+        adminApp = initializeApp({
+            projectId: firebaseConfig.projectId,
+        });
+    } catch (initError) {
+        console.error("Firebase Admin SDK initialization failed completely. Error: ", initError);
     }
   }
+  return adminApp;
 }
