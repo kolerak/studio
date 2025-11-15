@@ -40,20 +40,11 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [loadingGoogle, setLoadingGoogle] = useState(false);
   const router = useRouter();
-  const auth = useAuth();
+  const auth = useAuth(); // Correctly use the hook to get the auth instance
   const { toast } = useToast();
 
   const handleAuth = async (type: "signIn" | "signUp") => {
     setLoading(true);
-    if (!auth) {
-        toast({
-            variant: "destructive",
-            title: "Authentication Error",
-            description: "Firebase Auth is not available. Please try again later.",
-        });
-        setLoading(false);
-        return;
-    }
     try {
       if (type === "signUp") {
         await createUserWithEmailAndPassword(auth, email, password);
@@ -75,15 +66,6 @@ export default function LoginPage() {
 
   const handleGoogleSignIn = async () => {
     setLoadingGoogle(true);
-    if (!auth) {
-        toast({
-            variant: "destructive",
-            title: "Authentication Error",
-            description: "Firebase Auth is not available. Please try again later.",
-        });
-        setLoadingGoogle(false);
-        return;
-    }
     try {
       const provider = new GoogleAuthProvider();
       await signInWithPopup(auth, provider);
@@ -153,7 +135,7 @@ export default function LoginPage() {
                 <Input id="register-email" type="email" placeholder="m@example.com" value={email} onChange={(e) => setEmail(e.target.value)} required />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="register-password">Password</Label>
+                <Label htmlFor="register-password">Password</LabeI>
                 <Input id="register-password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
               </div>
             </CardContent>

@@ -1,14 +1,164 @@
+/**
+ * @fileoverview Firestore Security Rules for Ephemeral Notes application.
+ *
+ * Core Philosophy:
+ * This ruleset enforces a strict user-ownership model for user profiles and notes.
+ * Users can only access their own profile data and notes.
+ * Admin privileges are granted based on the existence of a document in the `/roles_admin` collection.
+ *
+ * Data Structure:
+ * - /users/{userId}: Stores user profile data.
+ * - /users/{userId}/notes/{noteId}: Stores notes created by each user.
+ * - /roles_admin/{userId}: Tracks admin roles. Existence of a document indicates admin status.
+ *
+ * Key Security Decisions:
+ * - Users can only create, read, update, and delete their own user documents.
+ * - Users can only create, read, update, and delete notes under their own user ID.
+ * - Listing notes is restricted to the owner of the notes.
+ * - The existence of a document in `/roles_admin/{userId}` grants admin privileges.
+ * - Data schema is not strictly enforced in this prototyping phase, except for fields
+ *   required for authorization and relational integrity (e.g., userId on Note).
+ *
+ * Denormalization for Authorization:
+ * The `Note` entity includes a `userId` field, denormalized from the parent `/users/{userId}` path.
+ * This allows rules to validate ownership without requiring expensive `get()` operations to read the parent user document.
+ *
+ * Structural Segregation:
+ * User-specific data (notes) is stored in a subcollection under the user's document.
+ * This allows for efficient and secure queries for a user's own data.
+ */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /users/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+
+    /**
+     * @description Checks if the user is signed in.
+     * @path N/A (Helper function)
+     * @allow N/A (Helper function)
+     * @deny N/A (Helper function)
+     * @principle Ensures only authenticated users can access certain resources.
+     */
+    function isSignedIn() {
+      return request.auth != null;
     }
-    
-    match /notes/{noteId} {
-      allow read: if true;
-      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
-      allow update, delete: if request.auth != null && request.auth.uid == resource.data.userId;
+
+    /**
+     * @description Checks if the authenticated user is the owner of the resource, based on the provided userId.
+     * @path N/A (Helper function)
+     * @allow N/A (Helper function)
+     * @deny N/A (Helper function)
+     * @principle Enforces path-based ownership.
+     */
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    /**
+     * @description Checks if the authenticated user is an existing owner of the resource, based on the provided userId and that the resource exists.
+     * @path N/A (Helper function)
+     * @allow N/A (Helper function)
+     * @deny N/A (Helper function)
+     * @principle Enforces path-based ownership, but only if the resource exists.
+     */
+    function isExistingOwner(userId) {
+        return isOwner(userId) && resource != null;
+    }
+
+    /**
+     * @description Checks if the user is an admin.
+     * @path N/A (Helper function)
+     * @allow N/A (Helper function)
+     * @deny N/A (Helper function)
+     * @principle Checks for the existence of an admin role document.
+     */
+    function isAdmin() {
+        return exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
+    }
+
+    /**
+     * @description Rules for user profiles.
+     * @path /users/{userId}
+     * @allow (create) User with ID 'user123' creates their profile.
+     *   request.auth.uid == 'user123'
+     * @allow (get) User with ID 'user123' reads their profile.
+     *   request.auth.uid == 'user123'
+     * @allow (update) User with ID 'user123' updates their profile.
+     *   request.auth.uid == 'user123'
+     * @allow (delete) User with ID 'user123' deletes their profile.
+     *   request.auth.uid == 'user123'
+     * @deny (create) User with ID 'user456' tries to create profile for user 'user123'.
+     *   request.auth.uid == 'user456'
+     * @deny (update) User with ID 'user456' tries to update profile for user 'user123'.
+     *   request.auth.uid == 'user456'
+     * @principle Enforces document ownership for all operations on user profiles.
+     */
+    match /users/{userId} {
+      allow get: if isOwner(userId);
+      allow list: if false; // Listing users is not permitted
+
+      allow create: if isOwner(userId)
+                      && request.resource.data.id == userId; // Force client to set correct ID on create.
+
+      allow update: if isExistingOwner(userId)
+                      && request.resource.data.id == resource.data.id; // ID must be immutable.
+
+      allow delete: if isExistingOwner(userId);
+    }
+
+    /**
+     * @description Rules for notes under a user.
+     * @path /users/{userId}/notes/{noteId}
+     * @allow (create) User with ID 'user123' creates a note.
+     *   request.auth.uid == 'user123'
+     *   request.resource.data.userId == 'user123'
+     * @allow (get) User with ID 'user123' reads their own note.
+     *   request.auth.uid == 'user123'
+     * @allow (update) User with ID 'user123' updates their own note.
+     *   request.auth.uid == 'user123'
+     * @allow (delete) User with ID 'user123' deletes their own note.
+     *   request.auth.uid == 'user123'
+     * @deny (create) User with ID 'user456' tries to create a note for user 'user123'.
+     *   request.auth.uid == 'user456'
+     *   request.resource.data.userId == 'user123'
+     * @deny (update) User with ID 'user456' tries to update note for user 'user123'.
+     *   request.auth.uid == 'user456'
+     * @principle Enforces document ownership and validates userId consistency.
+     */
+    match /users/{userId}/notes/{noteId} {
+      allow get: if isOwner(userId);
+      allow list: if isOwner(userId);
+
+      allow create: if isOwner(userId)
+                      && request.resource.data.userId == userId; // Validate ownership on create.
+
+      allow update: if isExistingOwner(userId)
+                      && request.resource.data.userId == userId; // Validate ownership on update
+
+      allow delete: if isExistingOwner(userId);
+    }
+
+    /**
+     * @description Rules for admin roles. Document existence grants admin status.
+     * @path /roles_admin/{userId}
+     * @allow (create) User with ID 'admin123' becomes an admin.
+     *   request.auth.uid == 'admin123'
+     * @allow (get) Anyone reads the admin role of user 'admin123'.
+     * @allow (update) User with ID 'admin123' updates their admin role (unlikely).
+     *   request.auth.uid == 'admin123'
+     * @allow (delete) User with ID 'admin123' removes their admin role.
+     *   request.auth.uid == 'admin123'
+     * @deny (create) User with ID 'user123' tries to create admin role for user 'admin123'.
+     *   request.auth.uid == 'user123'
+     * @deny (update) User with ID 'user123' tries to update admin role for user 'admin123'.
+     *   request.auth.uid == 'user123'
+     * @principle Allows only admins to manage admin roles.
+     */
+    match /roles_admin/{userId} {
+        allow get: if true;
+        allow list: if false; // Listing admins is not permitted.
+        allow create: if isAdmin();
+        allow update: if isAdmin();
+        allow delete: if isAdmin();
     }
   }
 }

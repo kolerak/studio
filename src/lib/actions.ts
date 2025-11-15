@@ -3,27 +3,39 @@
 
 import { redirect } from "next/navigation";
 import { generateShortId } from "@/lib/utils";
-import { getApps, initializeApp, App } from "firebase-admin/app";
+import { getApps, initializeApp, App, cert } from "firebase-admin/app";
 import { getFirestore, Timestamp } from "firebase-admin/firestore";
-import { firebaseConfig } from "@/firebase/config";
 
-// Store a cached instance of the Firebase Admin app
-let adminApp: App | null = null;
-
-function initAdmin() {
-  if (getApps().length > 0) {
+// This is a simplified and more robust way to initialize the Firebase Admin SDK.
+// It checks if the app is already initialized, and if not, it initializes it.
+function initAdmin(): App {
+  if (getApps().length) {
     return getApps()[0];
   }
-  return initializeApp({
-    projectId: firebaseConfig.projectId,
-  });
+
+  // Instead of using the client-side config, we check for the server-side
+  // environment variable that Firebase App Hosting provides.
+  if (process.env.FIREBASE_CONFIG) {
+     return initializeApp();
+  }
+
+  // Fallback for local development if GOOGLE_APPLICATION_CREDENTIALS is set
+  // This requires a service account key file.
+  try {
+    const serviceAccount = JSON.parse(process.env.GOOGLE_APPLICATION_CREDENTIALS!);
+    return initializeApp({
+        credential: cert(serviceAccount),
+    });
+  } catch (e) {
+    console.error("Firebase Admin SDK initialization failed.", e);
+    throw new Error("Could not initialize Firebase Admin SDK. Make sure GOOGLE_APPLICATION_CREDENTIALS is set correctly for local development.");
+  }
 }
 
 export async function createNoteAction(formData: FormData) {
   try {
-    initAdmin();
-    // Use the Admin SDK's getFirestore instance
-    const firestore = getFirestore();
+    const app = initAdmin();
+    const firestore = getFirestore(app);
 
     const content = formData.get("content") as string;
     const userId = formData.get("userId") as string | null;
@@ -47,22 +59,18 @@ export async function createNoteAction(formData: FormData) {
     const newNote = {
       content,
       userId: userId,
-      // Use the Admin SDK's Timestamp
       createdAt: Timestamp.now(),
       expiresAt: Timestamp.fromDate(thirtyDaysFromNow),
     };
 
-    // Use the Admin SDK's method to get a document reference and set it
     const noteRef = firestore.collection("notes").doc(noteId);
     await noteRef.set(newNote);
     
-    // This part will only be reached if setDoc is successful
-    redirect(`/${noteId}`);
-    
   } catch (error: any) {
     console.error("Note Creation Error:", error);
-    // Return a structured error with code and message
-    const errorMessage = `Could not create note. Code: ${error.code || 'UNKNOWN'}. Message: ${error.message || 'An unexpected error occurred.'}`;
-    return { error: errorMessage };
+    return { error: `Could not create note. Error: ${error.message}` };
   }
+
+  // Redirect must be called outside of the try-catch block
+  redirect(`/notes`);
 }

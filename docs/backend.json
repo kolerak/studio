@@ -8,7 +8,7 @@
       "properties": {
         "id": {
           "type": "string",
-          "description": "Unique identifier for the user entity."
+          "description": "Unique identifier for the User entity."
         },
         "email": {
           "type": "string",
@@ -19,16 +19,20 @@
           "type": "string",
           "description": "User's display name."
         },
+        "photoURL": {
+          "type": "string",
+          "description": "URL of the user's profile photo, if available.",
+          "format": "uri"
+        },
         "creationTimestamp": {
           "type": "string",
-          "description": "Timestamp indicating when the user account was created.",
+          "description": "Timestamp of when the user account was created.",
           "format": "date-time"
         }
       },
       "required": [
         "id",
         "email",
-        "displayName",
         "creationTimestamp"
       ]
     },
@@ -36,11 +40,11 @@
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Note",
       "type": "object",
-      "description": "Represents a note created by a user.",
+      "description": "Represents a note created by a user in the Ephemeral Notes application.",
       "properties": {
         "id": {
           "type": "string",
-          "description": "Unique identifier for the note entity."
+          "description": "Unique identifier for the Note entity."
         },
         "userId": {
           "type": "string",
@@ -48,26 +52,28 @@
         },
         "content": {
           "type": "string",
-          "description": "The content of the note."
+          "description": "Content of the note."
         },
-        "url": {
+        "customUrl": {
           "type": "string",
-          "description": "Unique short URL for accessing the note."
+          "description": "The custom URL for accessing the note (e.g., 'XJUV')."
         },
         "creationTimestamp": {
           "type": "string",
-          "description": "Timestamp indicating when the note was created.",
+          "description": "Timestamp when the note was created.",
           "format": "date-time"
         },
         "expirationTimestamp": {
           "type": "string",
-          "description": "Timestamp indicating when the note will expire.",
+          "description": "Timestamp when the note will expire and be deleted.",
           "format": "date-time"
         }
       },
       "required": [
         "id",
+        "userId",
         "content",
+        "customUrl",
         "creationTimestamp",
         "expirationTimestamp"
       ]
@@ -76,8 +82,7 @@
   "auth": {
     "providers": [
       "password",
-      "anonymous",
-      "google.com"
+      "anonymous"
     ]
   },
   "firestore": {
@@ -89,31 +94,52 @@
           "schema": {
             "$ref": "#/backend/entities/User"
           },
-          "description": "Stores user profile information. Access control is based on path-based ownership (request.auth.uid == userId).",
+          "description": "Stores user profiles.  Path-based ownership enforced.",
           "params": [
             {
               "name": "userId",
-              "description": "The unique identifier of the user."
+              "description": "The unique ID of the user, obtained from Firebase Authentication."
             }
           ]
         }
       },
       {
-        "path": "/notes/{noteId}",
+        "path": "/users/{userId}/notes/{noteId}",
         "definition": {
           "entityName": "Note",
           "schema": {
             "$ref": "#/backend/entities/Note"
           },
-          "description": "Stores notes created by any user (authenticated or anonymous).",
+          "description": "Stores notes created by each user. Includes `userId` (denormalized) for authorization independence.",
           "params": [
             {
+              "name": "userId",
+              "description": "The unique ID of the user, obtained from Firebase Authentication.  Represents the owner of the note."
+            },
+            {
               "name": "noteId",
-              "description": "The unique identifier of the note."
+              "description": "The unique ID of the note."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/roles_admin/{userId}",
+        "definition": {
+          "entityName": "adminRole",
+          "schema": {
+            "$ref": "#/backend/entities/User"
+          },
+          "description": "Tracks admin roles. Existence of a document indicates admin status.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique ID of the user."
             }
           ]
         }
       }
-    ]
+    ],
+    "reasoning": "The Firestore data structure is designed to ensure secure and scalable storage for Ephemeral Notes, focusing on user authentication and data isolation. It leverages path-based ownership for notes, placing them within user-specific collections, and denormalizes the user id to the Note for authorization independence. This structure facilitates straightforward security rules and efficient data retrieval. The design also supports the 'list' operation, which returns only the notes that are owned by the authenticated user.\n\nThe key collections are:\n\n*   `/users/{userId}`: Stores user profile data. Path-based ownership ensures only the authenticated user can access their own profile.\n*   `/users/{userId}/notes/{noteId}`: Stores notes created by each user. This hierarchical structure simplifies security rules, allowing notes to be easily associated with their respective users. The `note.userId` field allows rules to be written without need for parent document reads, facilitating authorization independence.\n*   `/roles_admin/{userId}`: Tracks admin roles, determined by document existence."
   }
 }
