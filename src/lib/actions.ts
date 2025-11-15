@@ -10,40 +10,18 @@ import { firebaseConfig } from "@/firebase/config";
 // Store a cached instance of the Firebase Admin app
 let adminApp: App | null = null;
 
-async function initAdmin() {
-  if (adminApp) {
-    return adminApp;
-  }
-  
+function initAdmin() {
   if (getApps().length > 0) {
-    adminApp = getApps()[0];
-    return adminApp;
+    return getApps()[0];
   }
-
-  try {
-    // When running in a Google Cloud environment, the SDK can automatically
-    // detect the service account credentials and project ID.
-    console.log("Attempting to initialize Firebase Admin with default credentials...");
-    adminApp = initializeApp();
-    return adminApp;
-  } catch (e: any) {
-    console.warn(
-      `Admin initialization with default credentials failed (Code: ${e.code}, Message: ${e.message}). Falling back to project ID from config.`
-    );
-    try {
-      console.log(`Attempting to initialize Firebase Admin with Project ID: ${firebaseConfig.projectId}`);
-      adminApp = initializeApp({ projectId: firebaseConfig.projectId });
-      return adminApp;
-    } catch (e2: any) {
-      console.error(`Firebase Admin initialization failed completely (Code: ${e2.code}, Message: ${e2.message}).`);
-      throw e2;
-    }
-  }
+  return initializeApp({
+    projectId: firebaseConfig.projectId,
+  });
 }
 
 export async function createNoteAction(formData: FormData) {
   try {
-    await initAdmin();
+    initAdmin();
     // Use the Admin SDK's getFirestore instance
     const firestore = getFirestore();
 
@@ -82,7 +60,7 @@ export async function createNoteAction(formData: FormData) {
     redirect(`/${noteId}`);
     
   } catch (error: any) {
-    console.error("Error in createNoteAction:", error);
+    console.error("Note Creation Error:", error);
     // Return a structured error with code and message
     const errorMessage = `Could not create note. Code: ${error.code || 'UNKNOWN'}. Message: ${error.message || 'An unexpected error occurred.'}`;
     return { error: errorMessage };
