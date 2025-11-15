@@ -1,27 +1,106 @@
 
 'use client';
 
-import React, { createContext, useContext, ReactNode, useMemo, useState, useEffect, DependencyList } from 'react';
+import React, { createContext, useContext, ReactNode, useMemo, useState, useEffect } from 'react';
 import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
 import { getFirestore, Firestore } from 'firebase/firestore';
-import { getAuth, Auth, User, onAuthStateChanged } from 'firebase/auth';
+import {
+  getAuth,
+  Auth,
+  User,
+  onAuthStateChanged,
+  initializeAuth,
+  browserPopupRedirectResolver,
+  indexedDBLocalPersistence,
+  browserLocalPersistence,
+} from 'firebase/auth';
 import { firebaseConfig } from './config';
 
 interface FirebaseContextState {
-  firebaseApp: FirebaseApp | null;
-  auth: Auth | null;
-  firestore: Firestore | null;
+  firebaseApp: FirebaseApp;
+  auth: Auth;
+  firestore: Firestore;
   user: User | null;
   isUserLoading: boolean;
 }
 
 const FirebaseContext = createContext<FirebaseContextState | undefined>(undefined);
 
-function initializeFirebase() {
-  if (getApps().length) {
-    return getApp();
+type FirebaseSingleton = {
+  firebaseApp: FirebaseApp;
+  auth: Auth;
+  firestore: Firestore;
+};
+
+let firebaseSingleton: FirebaseSingleton | null = null;
+let hasInitializedClientAuth = false;
+
+function ensureAuthorizedDomains(auth: Auth) {
+  const config = (auth.config ?? {}) as { authorizedDomains?: string[] };
+  const domains = new Set(config?.authorizedDomains ?? []);
+  if (firebaseConfig.authDomain) {
+    try {
+      const parsed = new URL(`https://${firebaseConfig.authDomain}`);
+      domains.add(parsed.hostname);
+    } catch (error) {
+      console.warn('Unable to parse Firebase authDomain', error);
+    }
   }
-  return initializeApp(firebaseConfig);
+
+  if (typeof window !== 'undefined') {
+    domains.add(window.location.hostname);
+    if (window.location.hostname !== window.location.host) {
+      const hostWithoutPort = window.location.host.replace(/:\d+$/, '');
+      domains.add(hostWithoutPort);
+    }
+  }
+
+  domains.add('localhost');
+  domains.add('127.0.0.1');
+
+  config.authorizedDomains = Array.from(domains).filter(Boolean);
+}
+
+export function initializeFirebase() {
+  if (firebaseSingleton) {
+    return firebaseSingleton;
+  }
+
+  const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+
+  let authInstance: Auth;
+
+  if (typeof window !== 'undefined') {
+    if (!hasInitializedClientAuth) {
+      authInstance = initializeAuth(app, {
+        persistence: [indexedDBLocalPersistence, browserLocalPersistence],
+        popupRedirectResolver: browserPopupRedirectResolver,
+      });
+      hasInitializedClientAuth = true;
+    } else {
+      authInstance = getAuth(app);
+    }
+  } else {
+    authInstance = getAuth(app);
+  }
+
+  try {
+    ensureAuthorizedDomains(authInstance);
+  } catch (error) {
+    console.warn('Unable to ensure Firebase authorized domains', error);
+  }
+
+  authInstance.useDeviceLanguage();
+
+  const firestoreInstance = getFirestore(app);
+
+  firebaseSingleton = {
+    firebaseApp: app,
+    auth: authInstance,
+    firestore: firestoreInstance,
+  };
+
+  return firebaseSingleton;
 }
 
 export const FirebaseProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
@@ -29,18 +108,25 @@ export const FirebaseProvider: React.FC<{ children: ReactNode }> = ({ children }
   const [isUserLoading, setIsUserLoading] = useState(true);
 
   const { firebaseApp, auth, firestore } = useMemo(() => {
-    const app = initializeFirebase();
-    const authInstance = getAuth(app);
-    const firestoreInstance = getFirestore(app);
-    return { firebaseApp: app, auth: authInstance, firestore: firestoreInstance };
+    return initializeFirebase();
   }, []);
 
   useEffect(() => {
     if (!auth) return;
-    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
-      setUser(firebaseUser);
-      setIsUserLoading(false);
-    });
+
+    const unsubscribe = onAuthStateChanged(
+      auth,
+      (firebaseUser) => {
+        setUser(firebaseUser);
+        setIsUserLoading(false);
+      },
+      (error) => {
+        console.error('Firebase auth subscription error', error);
+        setUser(null);
+        setIsUserLoading(false);
+      },
+    );
+
     return () => unsubscribe();
   }, [auth]);
 
@@ -70,20 +156,10 @@ function useFirebase() {
   return context;
 }
 
-export const useAuth = (): Auth | null => useFirebase().auth;
-export const useFirestore = (): Firestore | null => useFirebase().firestore;
+export const useAuth = (): Auth => useFirebase().auth;
+export const useFirestore = (): Firestore => useFirebase().firestore;
 export const useUser = () => {
   const { user, isUserLoading } = useFirebase();
   return { user, isUserLoading };
 };
 
-type MemoFirebase <T> = T & {__memo?: boolean};
-
-export function useMemoFirebase<T>(factory: () => T, deps: DependencyList): T | (MemoFirebase<T>) {
-  const memoized = useMemo(factory, deps);
-  
-  if(typeof memoized !== 'object' || memoized === null) return memoized;
-  (memoized as MemoFirebase<T>).__memo = true;
-  
-  return memoized;
-}
