@@ -1,9 +1,9 @@
 
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { useUser, useFirestore, useMemoFirebase } from "@/firebase";
+import { useUser, useFirestore } from "@/firebase";
 import { collection, query, where } from "firebase/firestore";
 import { useCollection } from "@/firebase/firestore/use-collection";
 import type { Note } from "@/types";
@@ -26,8 +26,10 @@ export default function NotesPage() {
     }
   }, [user, isUserLoading, router]);
 
-  const notesQuery = useMemoFirebase(() => {
-    if (!user || !firestore) return null;
+  const notesQuery = useMemo(() => {
+    if (!user) {
+      return null;
+    }
     return query(collection(firestore, "notes"), where("userId", "==", user.uid));
   }, [user, firestore]);
   
@@ -52,38 +54,38 @@ export default function NotesPage() {
   }
 
   if (!user) {
-    return null; // or a message indicating redirection
+    return null;
   }
   
-  const sortedNotes = notes?.sort((a, b) => b.createdAt.toMillis() - a.createdAt.toMillis());
+  const sortedNotes = notes?.slice().sort((a, b) => b.createdAt.toMillis() - a.createdAt.toMillis());
 
   return (
     <div className="container py-8">
       <div className="flex items-center justify-between mb-8">
         <div>
-            <h1 className="text-3xl font-bold tracking-tight font-headline">My Notes</h1>
-            <p className="text-muted-foreground">Here are the notes you've created.</p>
+          <h1 className="text-3xl font-bold tracking-tight font-headline">My Notes</h1>
+          <p className="text-muted-foreground">Here are the notes you've created.</p>
         </div>
         <Button asChild>
-            <Link href="/">
-                <PlusCircle className="mr-2 h-4 w-4"/>
-                New Note
-            </Link>
+          <Link href="/">
+            <PlusCircle className="mr-2 h-4 w-4" />
+            New Note
+          </Link>
         </Button>
       </div>
 
       {sortedNotes && sortedNotes.length === 0 ? (
         <div className="text-center py-16 border-2 border-dashed rounded-lg">
-            <h2 className="text-xl font-semibold">No notes yet</h2>
-            <p className="text-muted-foreground mt-2 mb-4">Create your first ephemeral note!</p>
-            <Button asChild>
-                <Link href="/">Create a Note</Link>
-            </Button>
+          <h2 className="text-xl font-semibold">No notes yet</h2>
+          <p className="text-muted-foreground mt-2 mb-4">Create your first ephemeral note!</p>
+          <Button asChild>
+            <Link href="/">Create a Note</Link>
+          </Button>
         </div>
       ) : (
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {sortedNotes && sortedNotes.map((note) => {
-            const noteUrl = typeof window !== 'undefined' ? `${window.location.origin}/${note.id}` : '';
+            const noteUrl = typeof window !== "undefined" ? `${window.location.origin}/${note.id}` : "";
             return (
               <Card key={note.id}>
                 <CardHeader>
@@ -97,15 +99,15 @@ export default function NotesPage() {
                   </p>
                 </CardContent>
                 <CardFooter className="flex justify-between items-center">
-                    <Button variant="ghost" size="sm" onClick={() => copyToClipboard(noteUrl)}>
-                        <Copy className="h-4 w-4 mr-2"/>
-                        Copy Link
-                    </Button>
-                    <Button asChild variant="secondary" size="sm">
-                        <Link href={`/${note.id}`}>
-                            View Note <ArrowRight className="h-4 w-4 ml-2"/>
-                        </Link>
-                    </Button>
+                  <Button variant="ghost" size="sm" onClick={() => copyToClipboard(noteUrl)}>
+                    <Copy className="h-4 w-4 mr-2" />
+                    Copy Link
+                  </Button>
+                  <Button asChild variant="secondary" size="sm">
+                    <Link href={`/${note.id}`}>
+                      View Note <ArrowRight className="h-4 w-4 ml-2" />
+                    </Link>
+                  </Button>
                 </CardFooter>
               </Card>
             );
