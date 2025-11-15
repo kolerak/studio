@@ -1,27 +1,57 @@
 
 'use client';
 
-import React, { createContext, useContext, ReactNode, useMemo, useState, useEffect, DependencyList } from 'react';
+import React, { createContext, useContext, ReactNode, useMemo, useState, useEffect } from 'react';
 import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
 import { getFirestore, Firestore } from 'firebase/firestore';
 import { getAuth, Auth, User, onAuthStateChanged } from 'firebase/auth';
 import { firebaseConfig } from './config';
 
 interface FirebaseContextState {
-  firebaseApp: FirebaseApp | null;
-  auth: Auth | null;
-  firestore: Firestore | null;
+  firebaseApp: FirebaseApp;
+  auth: Auth;
+  firestore: Firestore;
   user: User | null;
   isUserLoading: boolean;
 }
 
 const FirebaseContext = createContext<FirebaseContextState | undefined>(undefined);
 
-function initializeFirebase() {
-  if (getApps().length) {
-    return getApp();
+export function initializeFirebase() {
+  const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+  const authInstance = getAuth(app);
+
+  const authorizedDomains = new Set<string>();
+  const authDomain = firebaseConfig.authDomain;
+  if (authDomain) {
+    authorizedDomains.add(authDomain.replace(/^https?:\/\//, ""));
   }
-  return initializeApp(firebaseConfig);
+  if (typeof window !== "undefined") {
+    authorizedDomains.add(window.location.hostname);
+  }
+  authorizedDomains.add("localhost");
+  authorizedDomains.add("127.0.0.1");
+
+  const config = authInstance.config as { authorizedDomains?: unknown };
+  if (Array.isArray(config.authorizedDomains)) {
+    const mergedDomains = new Set<string>(config.authorizedDomains as string[]);
+    for (const domain of authorizedDomains) {
+      if (domain) {
+        mergedDomains.add(domain);
+      }
+    }
+    config.authorizedDomains = Array.from(mergedDomains);
+  } else {
+    config.authorizedDomains = Array.from(authorizedDomains).filter(Boolean);
+  }
+
+  const firestoreInstance = getFirestore(app);
+
+  return {
+    firebaseApp: app,
+    auth: authInstance,
+    firestore: firestoreInstance,
+  };
 }
 
 export const FirebaseProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
@@ -29,10 +59,7 @@ export const FirebaseProvider: React.FC<{ children: ReactNode }> = ({ children }
   const [isUserLoading, setIsUserLoading] = useState(true);
 
   const { firebaseApp, auth, firestore } = useMemo(() => {
-    const app = initializeFirebase();
-    const authInstance = getAuth(app);
-    const firestoreInstance = getFirestore(app);
-    return { firebaseApp: app, auth: authInstance, firestore: firestoreInstance };
+    return initializeFirebase();
   }, []);
 
   useEffect(() => {
@@ -70,20 +97,10 @@ function useFirebase() {
   return context;
 }
 
-export const useAuth = (): Auth | null => useFirebase().auth;
-export const useFirestore = (): Firestore | null => useFirebase().firestore;
+export const useAuth = (): Auth => useFirebase().auth;
+export const useFirestore = (): Firestore => useFirebase().firestore;
 export const useUser = () => {
   const { user, isUserLoading } = useFirebase();
   return { user, isUserLoading };
 };
 
-type MemoFirebase <T> = T & {__memo?: boolean};
-
-export function useMemoFirebase<T>(factory: () => T, deps: DependencyList): T | (MemoFirebase<T>) {
-  const memoized = useMemo(factory, deps);
-  
-  if(typeof memoized !== 'object' || memoized === null) return memoized;
-  (memoized as MemoFirebase<T>).__memo = true;
-  
-  return memoized;
-}
