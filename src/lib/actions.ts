@@ -3,21 +3,30 @@
 import { doc, setDoc, Timestamp } from "firebase/firestore";
 import { redirect } from "next/navigation";
 import { generateShortId } from "@/lib/utils";
-import { initAdmin } from "./firebase/admin-config";
+import { getApps, initializeApp, cert } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
+import { firebaseConfig } from "@/firebase/config";
 
-async function getUserId() {
+async function initAdmin() {
+  if (getApps().length > 0) {
+    return getApps()[0];
+  }
+
+  // When running in a Google Cloud environment, the SDK can automatically
+  // detect the service account credentials and project ID.
   try {
-    // This part is tricky without a session management library like next-auth
-    // For a server action, we don't have direct access to client-side auth state.
-    // A proper implementation would pass an ID token from the client to the server action
-    // and verify it here. For this example, we'll assume a simplified scenario where
-    // userId is passed directly, or we handle anonymous notes.
-    // This part of the code is illustrative of where user ID would be handled.
-    return null; // Placeholder
+    return initializeApp();
   } catch (e) {
-    console.error(e);
-    return null;
+    console.warn(
+      'Admin initialization with default credentials failed. Falling back to project ID. Error:',
+      e
+    );
+    try {
+      return initializeApp({ projectId: firebaseConfig.projectId });
+    } catch (e2) {
+      console.error('Admin initialization failed completely. Error:', e2);
+      throw e2;
+    }
   }
 }
 
@@ -35,17 +44,18 @@ export async function createNoteAction(formData: FormData) {
     return { error: "Note is too long." };
   }
   
-  let noteId = generateShortId();
+  if (!userId) {
+    return { error: "You must be logged in to create a note." };
+  }
 
-  // A more robust solution would check for ID collisions
-  // For this app, the chance is low enough to proceed.
+  let noteId = generateShortId();
 
   const thirtyDaysFromNow = new Date();
   thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
 
   const newNote = {
     content,
-    userId: userId || null,
+    userId: userId,
     createdAt: Timestamp.now(),
     expiresAt: Timestamp.fromDate(thirtyDaysFromNow),
   };
