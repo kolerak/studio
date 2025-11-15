@@ -3,33 +3,16 @@
 
 import { redirect } from "next/navigation";
 import { generateShortId } from "@/lib/utils";
-import { getApps, initializeApp, App, cert } from "firebase-admin/app";
+import { getApps, initializeApp, App } from "firebase-admin/app";
 import { getFirestore, Timestamp } from "firebase-admin/firestore";
+import { firebaseConfig } from "@/firebase/config";
 
-// This is a simplified and more robust way to initialize the Firebase Admin SDK.
-// It checks if the app is already initialized, and if not, it initializes it.
+// Initialize Firebase Admin SDK
 function initAdmin(): App {
   if (getApps().length) {
     return getApps()[0];
   }
-
-  // Instead of using the client-side config, we check for the server-side
-  // environment variable that Firebase App Hosting provides.
-  if (process.env.FIREBASE_CONFIG) {
-     return initializeApp();
-  }
-
-  // Fallback for local development if GOOGLE_APPLICATION_CREDENTIALS is set
-  // This requires a service account key file.
-  try {
-    const serviceAccount = JSON.parse(process.env.GOOGLE_APPLICATION_CREDENTIALS!);
-    return initializeApp({
-        credential: cert(serviceAccount),
-    });
-  } catch (e) {
-    console.error("Firebase Admin SDK initialization failed.", e);
-    throw new Error("Could not initialize Firebase Admin SDK. Make sure GOOGLE_APPLICATION_CREDENTIALS is set correctly for local development.");
-  }
+  return initializeApp({ projectId: firebaseConfig.projectId });
 }
 
 export async function createNoteAction(formData: FormData) {
@@ -68,7 +51,7 @@ export async function createNoteAction(formData: FormData) {
     
   } catch (error: any) {
     console.error("Note Creation Error:", error);
-    return { error: `Could not create note. Error: ${error.message}` };
+    return { error: `Could not create note. Code: ${error.code}. Message: ${error.message}` };
   }
 
   // Redirect must be called outside of the try-catch block

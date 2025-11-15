@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState } from "react";
@@ -40,10 +39,18 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [loadingGoogle, setLoadingGoogle] = useState(false);
   const router = useRouter();
-  const auth = useAuth(); // Correctly use the hook to get the auth instance
+  const auth = useAuth();
   const { toast } = useToast();
 
   const handleAuth = async (type: "signIn" | "signUp") => {
+    if (!auth) {
+      toast({
+        variant: "destructive",
+        title: "Authentication Error",
+        description: "Firebase Auth is not available.",
+      });
+      return;
+    }
     setLoading(true);
     try {
       if (type === "signUp") {
@@ -65,6 +72,14 @@ export default function LoginPage() {
   };
 
   const handleGoogleSignIn = async () => {
+    if (!auth) {
+      toast({
+        variant: "destructive",
+        title: "Authentication Error",
+        description: "Firebase Auth is not available.",
+      });
+      return;
+    }
     setLoadingGoogle(true);
     try {
       const provider = new GoogleAuthProvider();
@@ -135,7 +150,7 @@ export default function LoginPage() {
                 <Input id="register-email" type="email" placeholder="m@example.com" value={email} onChange={(e) => setEmail(e.target.value)} required />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="register-password">Password</LabeI>
+                <Label htmlFor="register-password">Password</Label>
                 <Input id="register-password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
               </div>
             </CardContent>

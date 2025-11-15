@@ -3,7 +3,7 @@ import type { Metadata } from 'next';
 import './globals.css';
 import { Toaster } from '@/components/ui/toaster';
 import Header from './components/header';
-import { FirebaseProvider } from '@/firebase/provider';
+import { FirebaseProvider } from '@/firebase';
 
 export const metadata: Metadata = {
   title: 'Ephemeral Notes',
