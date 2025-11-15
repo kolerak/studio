@@ -7,9 +7,7 @@ service cloud.firestore {
     
     match /notes/{noteId} {
       allow read: if true;
-      // Allow create if the user is authenticated and the userId on the note matches their uid
       allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
-      // Only allow updates/deletes from the user who owns the note
       allow update, delete: if request.auth != null && request.auth.uid == resource.data.userId;
     }
   }
